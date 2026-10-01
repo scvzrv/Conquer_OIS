@@ -2,7 +2,9 @@
 // @name         攻占OIS机器人
 // @namespace    scvzrv/Conquer_OIS
 // @version      2.3
-// @description  点击Upload按钮，0.2 秒后打开一个铺满屏幕的独立窗口 → 旧窗口关闭后，新窗口自动刷新一次
+// @description  攻占OIS机器人：作业页点按钮自动开新窗口 + 工作列表自动刷新提醒（点面板「使用说明」看详情）
+// ↓↓↓ 自动更新说明：油猴会定期访问 @updateURL 检查版本号，发现比本地 @version 大就自动下载安装（@downloadURL 是下载地址），同事无需任何操作。
+// ↓↓↓ 发新版流程：改完代码把下面的 @version 加一档（如 2.3→2.4），上传覆盖 GitHub 上的同名文件即可；版本号不变 = 不推送更新。
 // @updateURL    https://raw.githubusercontent.com/scvzrv/Conquer_OIS/refs/heads/main/OIS_%E7%82%B9Upload%E8%87%AA%E5%8A%A8%E5%BC%80%E6%96%B0%E7%AA%97%E5%8F%A3.js
 // @downloadURL  https://raw.githubusercontent.com/scvzrv/Conquer_OIS/refs/heads/main/OIS_%E7%82%B9Upload%E8%87%AA%E5%8A%A8%E5%BC%80%E6%96%B0%E7%AA%97%E5%8F%A3.js
 // @match        http://ois.aplushk.com/file/job/stamper/*
