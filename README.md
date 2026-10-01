@@ -1,2 +1,2 @@
 # Conquer_OIS
-用于摆放处理OIS Javascript文件
+存放处理OIS Javascript文件
