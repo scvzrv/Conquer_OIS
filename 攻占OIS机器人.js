@@ -2,7 +2,7 @@
 // @name         攻占OIS机器人
 // @namespace    scvzrv/Conquer_OIS
 // @version      2.3
-// @description  点按钮后保留原功能 → 0.2 秒后打开一个铺满屏幕的独立窗口 → 旧窗口关闭后（网站自己关或手动关），新窗口自动刷新一次
+// @description  点击Upload按钮，0.2 秒后打开一个铺满屏幕的独立窗口 → 旧窗口关闭后，新窗口自动刷新一次
 // @updateURL    https://raw.githubusercontent.com/scvzrv/Conquer_OIS/refs/heads/main/OIS_%E7%82%B9Upload%E8%87%AA%E5%8A%A8%E5%BC%80%E6%96%B0%E7%AA%97%E5%8F%A3.js
 // @downloadURL  https://raw.githubusercontent.com/scvzrv/Conquer_OIS/refs/heads/main/OIS_%E7%82%B9Upload%E8%87%AA%E5%8A%A8%E5%BC%80%E6%96%B0%E7%AA%97%E5%8F%A3.js
 // @match        http://ois.aplushk.com/file/job/stamper/*
