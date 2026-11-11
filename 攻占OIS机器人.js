@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         攻占OIS机器人
 // @namespace    scvzrv/Conquer_OIS
-// @version      5.0
+// @version      5.1
 // @description  攻占OIS机器人（持续更新多项功能）
 // @updateURL    https://raw.githubusercontent.com/scvzrv/Conquer_OIS/refs/heads/main/%E6%94%BB%E5%8D%A0OIS%E6%9C%BA%E5%99%A8%E4%BA%BA.js
 // @downloadURL  https://raw.githubusercontent.com/scvzrv/Conquer_OIS/refs/heads/main/%E6%94%BB%E5%8D%A0OIS%E6%9C%BA%E5%99%A8%E4%BA%BA.js
@@ -52,7 +52,7 @@
         { value: 'ding', label: '叮一声', times: 3 }
     ];
     const KEY = 'oisw_';
-    const SCRIPT_VERSION = '5.0';
+    const SCRIPT_VERSION = '5.1';
     const BASELINE_FMT = 1;
     function save(k, v) {
         try { localStorage.setItem(KEY + k, JSON.stringify(v)); } catch (err) {
@@ -895,12 +895,14 @@ body.appendChild(warnRow);
         命中窗口毫秒: 90000,
         等弹窗毫秒: 6000,
         等刷新毫秒: 4000,
+        默认角色: 'member',
     };
     const my状态名 = { 1: 'Online', 2: 'Meal break', 3: 'Offline' };
     const my存储键 = {
         班次1: 'dtpk_morning',
         班次2: 'dtpk_afternoon',
         休息分钟: 'dtpk_breakMin',
+        角色: 'dtpk_role',
         已完成: 'dtpk_done'
     };
     const my会话键 = {
@@ -940,6 +942,11 @@ body.appendChild(warnRow);
         const my数 = parseInt(my读存储(my存储键.休息分钟, String(my配置.休息分钟)), 10);
         return (isNaN(my数) || my数 < 1 || my数 > 180) ? my配置.休息分钟 : my数;
     }
+    function my取角色() {
+        const my值 = my读存储(my存储键.角色, my配置.默认角色);
+        return (my值 === 'handler' || my值 === 'member') ? my值 : my配置.默认角色;
+    }
+    function my写角色(my角色) { my写存储(my存储键.角色, my角色); }
     function my今天打过(my哪天, my哪个点) {
         let my原文;
         try { my原文 = JSON.parse(my读存储(my存储键.已完成, '{}')); } catch (my错) { my原文 = {}; }
@@ -1055,6 +1062,31 @@ body.appendChild(warnRow);
         const my第三行 = my造元素('div', { marginBottom: '6px' });
         my第三行.appendChild(my造按钮('下班', '#c62828', function () { my执行打卡(3, '下班'); }));
         my面板盒.appendChild(my第三行);
+        const my角色行 = my造元素('div', { display: 'flex', alignItems: 'center', marginBottom: '6px' });
+        const my角色框们 = [];
+        const my造角色框 = function (my字, my值) {
+            const my标 = my造元素('label', { marginRight: '14px', cursor: 'pointer', fontSize: '16px' });
+            const my框 = my造元素('input', { verticalAlign: 'middle', marginRight: '4px', cursor: 'pointer' });
+            my框.type = 'checkbox';
+            my框.checked = (my取角色() === my值);
+            my框.setAttribute('data-role', my值);
+            my框.addEventListener('change', function () {
+                if (my框.checked) {
+                    my角色框们.forEach(function (my别) { if (my别 !== my框) my别.checked = false; });
+                    my写角色(my值);
+                    my记日志('打卡身份改为', my值);
+                } else {
+                    my框.checked = true;
+                }
+            });
+            my标.appendChild(my框);
+            my标.appendChild(document.createTextNode(my字));
+            my角色框们.push(my框);
+            return my标;
+        };
+        my角色行.appendChild(my造角色框('Member', 'member'));
+        my角色行.appendChild(my造角色框('Handler', 'handler'));
+        my面板盒.appendChild(my角色行);
         const my状态行 = my造元素('div', { color: '#000', borderTop: '1px solid #d8d8d8', paddingTop: '6px' }, '');
         my面板盒.appendChild(my状态行);
         return {
@@ -1113,10 +1145,27 @@ body.appendChild(warnRow);
             if (!my选项) { my让开面板(false); my忙碌中 = false; my清凭证(); my写状态('打卡失败：下拉里没有值 ' + my目标, true); return; }
             my下拉.value = String(my目标);
             try { my下拉.dispatchEvent(new Event('change', { bubbles: true })); } catch (my错) { }
-            const my成员框 = my取元素('#member_role');
-            if (my成员框 && !my成员框.checked) my成员框.click();
-            const my角色已勾 = my取元素们('#dtpStatusModal .role_checkbox').some(function (my框) { return my框.checked; });
-            if (!my角色已勾) { my让开面板(false); my忙碌中 = false; my清凭证(); my写状态('打卡失败：Member 没勾上', true); return; }
+            if (my目标 === 1) {
+                const my角色 = my取角色();
+                const my目标框 = my取元素(my角色 === 'handler' ? '#handler_role' : '#member_role');
+                if (!my目标框) { my让开面板(false); my忙碌中 = false; my清凭证(); my写状态('打卡失败：编辑框里找不到角色复选框', true); return; }
+                if (!my目标框.checked) my目标框.click();
+                if (my角色 === 'handler') {
+                    const my要勾 = ['2', '4', '5'];
+                    my要勾.forEach(function (my值) {
+                        const my框 = my取元素('#dtpStatusModal .multiselect-container input[type=checkbox][value="' + my值 + '"]');
+                        if (my框 && !my框.checked) my框.click();
+                    });
+                    const my没勾全 = my要勾.some(function (my值) {
+                        const my框 = my取元素('#dtpStatusModal .multiselect-container input[type=checkbox][value="' + my值 + '"]');
+                        return !my框 || !my框.checked;
+                    });
+                    if (my没勾全) { my让开面板(false); my忙碌中 = false; my清凭证(); my写状态('打卡失败：Task Cate 三项没勾全', true); return; }
+                    my记日志('Handler 上班：Task Cate 三项已勾上');
+                }
+                const my角色已勾 = my取元素们('#dtpStatusModal .role_checkbox').some(function (my框) { return my框.checked; });
+                if (!my角色已勾) { my让开面板(false); my忙碌中 = false; my清凭证(); my写状态('打卡失败：角色没勾上', true); return; }
+            }
             const my保存钮 = my取元素('#dtpStatusModal .JS_dtp_status_save');
             if (!my保存钮) { my让开面板(false); my忙碌中 = false; my清凭证(); my写状态('打卡失败：找不到 Save 按钮', true); return; }
             my保存钮.click();
