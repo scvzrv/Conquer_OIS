@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         攻占OIS机器人
 // @namespace    scvzrv/Conquer_OIS
-// @version      5.1
+// @version      6.0
 // @description  攻占OIS机器人（持续更新多项功能）
 // @updateURL    https://raw.githubusercontent.com/scvzrv/Conquer_OIS/refs/heads/main/%E6%94%BB%E5%8D%A0OIS%E6%9C%BA%E5%99%A8%E4%BA%BA.js
 // @downloadURL  https://raw.githubusercontent.com/scvzrv/Conquer_OIS/refs/heads/main/%E6%94%BB%E5%8D%A0OIS%E6%9C%BA%E5%99%A8%E4%BA%BA.js
@@ -52,7 +52,7 @@
         { value: 'ding', label: '叮一声', times: 3 }
     ];
     const KEY = 'oisw_';
-    const SCRIPT_VERSION = '5.1';
+    const SCRIPT_VERSION = '6.0';
     const BASELINE_FMT = 1;
     function save(k, v) {
         try { localStorage.setItem(KEY + k, JSON.stringify(v)); } catch (err) {
@@ -1710,4 +1710,253 @@ body.appendChild(warnRow);
     } else {
         my启动();
     }
+})();
+(async function () {
+    'use strict';
+    if (location.pathname.indexOf('/file/job/stamper') !== 0) return;
+    const my配置 = {
+        标记键: 'm7_pending',
+        标记超时秒: 60,
+        等按钮毫秒: 3000,
+        等表格毫秒: 5000,
+        防挂起毫秒: 8000,
+        提示毫秒: 5000
+    };
+    function my记日志() {
+        try { console.log.apply(console, ['[模块7]'].concat(Array.prototype.slice.call(arguments))); } catch (my错) { }
+    }
+    function my睡(my毫秒) { return new Promise(function (my完成) { setTimeout(my完成, my毫秒); }); }
+    async function my等到(my条件, my超时毫秒, my说明) {
+        const my起点 = Date.now();
+        while (Date.now() - my起点 < my超时毫秒) {
+            let my成了 = false;
+            try { my成了 = !!my条件(); } catch (my错) { my成了 = false; }
+            if (my成了) return true;
+            await my睡(120);
+        }
+        my记日志('等不到：' + my说明);
+        return false;
+    }
+    function my未完成框们() {
+        return Array.prototype.slice.call(document.querySelectorAll('input.single_start_pause_id:not([disabled])'));
+    }
+    function my未完成行们() {
+        const my表们 = Array.prototype.slice.call(document.querySelectorAll('table'));
+        let my表 = null, my起列 = -1, my止列 = -1;
+        for (let i = 0; i < my表们.length; i++) {
+            const my头 = my表们[i].querySelector('thead');
+            if (!my头 || !/Stamper\s*Number/i.test(my头.textContent || '')) continue;
+            my表 = my表们[i];
+            const my头格们 = my头.querySelectorAll('th');
+            for (let j = 0; j < my头格们.length; j++) {
+                const my字 = String(my头格们[j].textContent || '').trim();
+                if (my字 === 'Start Time') my起列 = j;
+                if (my字 === 'End Time') my止列 = j;
+            }
+            break;
+        }
+        if (!my表 || my起列 < 0 || my止列 < 0) { my记日志('找不到 Start Time / End Time 列'); return []; }
+        const my结果 = [];
+        Array.prototype.slice.call(my表.querySelectorAll('tbody tr')).forEach(function (my行) {
+            const my框 = my行.querySelector('input.single_start_pause_id:not([disabled])');
+            if (!my框) return;
+            const my格们 = my行.children;
+            my结果.push({
+                框: my框,
+                起时: my格们[my起列] ? String(my格们[my起列].textContent || '').trim() : '',
+                止时: my格们[my止列] ? String(my格们[my止列].textContent || '').trim() : ''
+            });
+        });
+        return my结果;
+    }
+    let my提示容器 = null;
+    function my提示(my文字) {
+        try {
+            if (!my提示容器) {
+                my提示容器 = document.createElement('div');
+                my提示容器.style.cssText = [
+                    'position:fixed', 'left:50%', 'bottom:24px', 'transform:translateX(-50%)',
+                    'zIndex:2147483001', 'display:flex', 'flexDirection:column', 'alignItems:center',
+                    'gap:6px', 'pointerEvents:none'
+                ].join(';');
+                document.body.appendChild(my提示容器);
+            }
+            const my条 = document.createElement('div');
+            my条.style.cssText = [
+                'padding:8px 18px', 'borderRadius:6px',
+                'background:rgba(0,0,0,.82)', 'color:#fff',
+                'font:14px/1.5 "Microsoft YaHei",sans-serif',
+                'boxShadow:0 3px 12px rgba(0,0,0,.3)',
+                'opacity:0', 'transition:opacity .25s'
+            ].join(';');
+            my条.textContent = my文字;
+            my提示容器.appendChild(my条);
+            setTimeout(function () { my条.style.opacity = '1'; }, 10);
+            setTimeout(function () {
+                my条.style.opacity = '0';
+                setTimeout(function () { if (my条.parentNode) my条.parentNode.removeChild(my条); }, 300);
+            }, my配置.提示毫秒);
+        } catch (my错) { my记日志('显示提示出错', my错); }
+    }
+    function my按钮可见(my选择器) {
+        const my钮 = document.querySelector(my选择器);
+        return !!my钮 && window.getComputedStyle(my钮).display !== 'none';
+    }
+    function my读标记() {
+        try {
+            const my原 = sessionStorage.getItem(my配置.标记键);
+            if (!my原) return null;
+            const my值 = JSON.parse(my原);
+            if (!my值 || my值.阶段 !== 'pause') return null;
+            if (!my值.时刻 || Date.now() - my值.时刻 > my配置.标记超时秒 * 1000) return null;
+            return my值;
+        } catch (my错) { return null; }
+    }
+    function my写标记(my总数) {
+        try { sessionStorage.setItem(my配置.标记键, JSON.stringify({ 阶段: 'pause', 时刻: Date.now(), 总数: my总数 })); } catch (my错) { }
+    }
+    function my清标记() {
+        try { sessionStorage.removeItem(my配置.标记键); } catch (my错) { }
+    }
+    function my勾框们(my全体, my要勾的) {
+        my全体.forEach(function (my框) {
+            const my该勾 = my要勾的.indexOf(my框) >= 0;
+            if (my该勾 && !my框.checked) my框.click();
+            if (!my该勾 && my框.checked) my框.click();
+        });
+    }
+    const my续跑 = my读标记();
+    if (my续跑) {
+        my清标记();
+        my记日志('上一轮 All Start 已完成，自动续跑 All Pause');
+        const my表格好了 = await my等到(function () { return my未完成框们().length > 0; }, my配置.等表格毫秒, 'Stamper List 表格');
+        if (my表格好了) {
+            const my行们 = my未完成行们();
+            const my最下 = my行们.length ? my行们[my行们.length - 1] : null;
+            const my待暂停 = my行们.filter(function (my行) { return !my行.止时 && my行 !== my最下; });
+            if (my待暂停.length) {
+                my勾框们(my行们.map(function (my行) { return my行.框; }), my待暂停.map(function (my行) { return my行.框; }));
+                my提示('③ 刷新后已勾选 ' + my待暂停.length + ' 条未 Pause 的 Stamper');
+                const my按钮好了 = await my等到(function () { return my按钮可见('.JS_all_pause'); }, my配置.等按钮毫秒, 'All Pause 按钮');
+                if (my按钮好了) {
+                    my记日志('点 All Pause：勾 ' + my待暂停.length + ' 条，留最下面一条 ' + my最下.框.getAttribute('attr-id') + ' 保持 Start');
+                    my提示('④ 已点击 All Pause，只留最下面一条保持 Start');
+                    document.querySelector('.JS_all_pause').click();
+                }
+            } else {
+                my记日志('没有需要 Pause 的 Stamper，跳过');
+                my提示('没有需要 Pause 的 Stamper，脚本跳过操作。');
+            }
+        }
+    } else {
+        my清标记();
+    }
+    let my忙着 = false;
+    document.addEventListener('keydown', async function (my按键事件) {
+        if (!my按键事件.ctrlKey || !my按键事件.altKey) return;
+        if (my按键事件.code !== 'KeyS') return;
+        const my焦点 = my按键事件.target;
+        const my标签 = my焦点 ? my焦点.tagName : '';
+        if (my标签 === 'INPUT' || my标签 === 'SELECT' || my标签 === 'TEXTAREA') return;
+        my按键事件.preventDefault();
+        if (my忙着) { my记日志('上一次还没走完，先等等'); return; }
+        const my行们 = my未完成行们();
+        const my待开 = my行们.filter(function (my行) { return !my行.起时; });
+        if (!my待开.length) {
+            my记日志('没有「未完成且 Start Time 为空」的新 Stamper，这次不动');
+            my提示('没有新入的 Stamper，脚本跳过操作。');
+            return;
+        }
+        my忙着 = true;
+        setTimeout(function () { my忙着 = false; }, my配置.防挂起毫秒);
+        my勾框们(my行们.map(function (my行) { return my行.框; }), my待开.map(function (my行) { return my行.框; }));
+        my提示('① 已勾选 ' + my待开.length + ' 条未开始的 Stamper');
+        const my按钮好了 = await my等到(function () { return my按钮可见('.JS_all_start'); }, my配置.等按钮毫秒, 'All Start 按钮');
+        if (!my按钮好了) { my忙着 = false; return; }
+        my写标记(my待开.length);
+        my记日志('点 All Start：' + my待开.length + ' 条未开始，刷新后自动续跑 All Pause');
+        my提示('② 已点击 All Start，等待网页刷新');
+        document.querySelector('.JS_all_start').click();
+    }, true);
+    my记日志('已启动：在这页按 Ctrl+Alt+S');
+})();
+(async function () {
+    'use strict';
+    if (location.pathname.indexOf('/file/job/stamper') !== 0) return;
+    const my配置 = {
+        等按钮毫秒: 3000,
+        轮询毫秒: 120,
+        提示毫秒: 5000,
+        防挂起毫秒: 1000
+    };
+    function my记日志() {
+        try { console.log.apply(console, ['[模块8]'].concat(Array.prototype.slice.call(arguments))); } catch (my错) { }
+    }
+    let my提示容器 = null;
+    function my提示(my文字) {
+        try {
+            if (!my提示容器) {
+                my提示容器 = document.createElement('div');
+                my提示容器.style.cssText = [
+                    'position:fixed', 'left:50%', 'bottom:24px', 'transform:translateX(-50%)',
+                    'zIndex:2147483001', 'display:flex', 'flexDirection:column', 'alignItems:center',
+                    'gap:6px', 'pointerEvents:none'
+                ].join(';');
+                document.body.appendChild(my提示容器);
+            }
+            const my条 = document.createElement('div');
+            my条.style.cssText = [
+                'padding:8px 18px', 'borderRadius:6px',
+                'background:rgba(0,0,0,.82)', 'color:#fff',
+                'font:14px/1.5 "Microsoft YaHei",sans-serif',
+                'boxShadow:0 3px 12px rgba(0,0,0,.3)',
+                'opacity:0', 'transition:opacity .25s'
+            ].join(';');
+            my条.textContent = my文字;
+            my提示容器.appendChild(my条);
+            setTimeout(function () { my条.style.opacity = '1'; }, 10);
+            setTimeout(function () {
+                my条.style.opacity = '0';
+                setTimeout(function () { if (my条.parentNode) my条.parentNode.removeChild(my条); }, 300);
+            }, my配置.提示毫秒);
+        } catch (my错) { my记日志('显示提示出错', my错); }
+    }
+    let my忙着 = false;
+    document.addEventListener('keydown', async function (my按键事件) {
+        if (!my按键事件.ctrlKey || !my按键事件.altKey) return;
+        if (my按键事件.code !== 'KeyA') return;
+        const my焦点 = my按键事件.target;
+        const my标签 = my焦点 ? my焦点.tagName : '';
+        if (my标签 === 'INPUT' || my标签 === 'SELECT' || my标签 === 'TEXTAREA') return;
+        my按键事件.preventDefault();
+        if (my忙着) { my记日志('上一次还没走完，先等等'); return; }
+        const my行框们 = document.querySelectorAll('input.file_sets_id[type="checkbox"]');
+        const my全选框 = document.querySelector('input.JS_selected_all[attr-item="file_sets_id"]');
+        if (!my行框们.length || !my全选框) {
+            my记日志('没有未完成的 Stamper，这次不动');
+            my提示('没有未完成的 Stamper，跳过');
+            return;
+        }
+        my忙着 = true;
+        setTimeout(function () { my忙着 = false; }, my配置.防挂起毫秒);
+        if (!my全选框.checked) my全选框.click();
+        my提示('已勾选全部未完成 Stamper');
+        const my起点 = Date.now();
+        let my按钮好了 = false;
+        while (Date.now() - my起点 < my配置.等按钮毫秒) {
+            const my钮 = document.querySelector('.JS_end_upload');
+            if (my钮 && window.getComputedStyle(my钮).display !== 'none') { my按钮好了 = true; break; }
+            await new Promise(function (my完成) { setTimeout(my完成, my配置.轮询毫秒); });
+        }
+        if (!my按钮好了) {
+            my记日志('等不到：End and Upload 按钮');
+            my提示('End and Upload 没出现，跳过');
+            my忙着 = false;
+            return;
+        }
+        document.querySelector('.JS_end_upload').click();
+        my提示('已点击 End and Upload');
+        my记日志('已点 End and Upload，停在上传弹窗，等人工拉 PDF 进去');
+    }, true);
+    my记日志('已启动：在这页按 Ctrl+Alt+A');
 })();
